@@ -148,7 +148,7 @@ def generate_forecast_map(predictions, original_shape, transform, bounds, crs):
         # buf.seek(0)
         plt.close()
         
-        return buf
+        # return buf
     except Exception as e:
         st.error(f"Error generating map: {str(e)}")
         return None
