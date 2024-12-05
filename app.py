@@ -39,31 +39,27 @@ st.markdown("""
 def load_model():
     try:
         with open('model-svm.pkl', 'rb') as f:
-            model_dict = pickle.load(f)
-        return model_dict
+            data = pickle.load(f)
+        model = data['model']
+        scaler = data['scaler']
+        return model, scaler
     except Exception as e:
         st.error(f"Error loading model: {str(e)}")
-        return None
+        return None, None
 
-def make_prediction(model_dict, features):
-    """Make prediction using the model dictionary"""
+def make_prediction(model, scaler, features):
+    """Make prediction using the model and scaler"""
     try:
-        # Assuming the model dictionary contains the actual model or coefficients
-        # You might need to adjust this based on your model's structure
-        if isinstance(model_dict, dict):
-            if 'coefficients' in model_dict:
-                # If the model is stored as coefficients
-                coefficients = model_dict['coefficients']
-                # Apply the coefficients to make predictions
-                predictions = np.dot(features, coefficients)
-                return predictions
-            elif 'model' in model_dict:
-                # If the model is stored as a complete model object
-                model = model_dict['model']
-                return model.predict(features)
-        else:
-            # If the dictionary is actually the model itself
-            return model_dict(features)
+        # Scale the features
+        features_normalized = scaler.transform(features)
+        
+        # Predict decision values
+        decision_values = model.decision_function(features_normalized)
+        
+        # Convert decision values to probabilities using logistic function
+        probabilities = 1 / (1 + np.exp(-decision_values))
+        
+        return probabilities
     except Exception as e:
         st.error(f"Error making prediction: {str(e)}")
         return None
@@ -98,9 +94,6 @@ def process_image(uploaded_file):
                 
                 # Reshape for model input (pixels x bands)
                 features = img_array.reshape(-1, img_array.shape[-1])
-                
-                # Normalize features
-                features = (features - np.mean(features, axis=0)) / np.std(features, axis=0)
                 
                 # Replace NaN values with 0
                 features = np.nan_to_num(features)
@@ -230,10 +223,10 @@ def main():
         "from Venus satellite imagery. Upload your GeoTIFF image to generate a forecast."
     )
     
-    # Load model
-    model_dict = load_model()
-    if model_dict is None:
-        st.error("Failed to load the model. Please check the model file.")
+    # Load model and scaler
+    model, scaler = load_model()
+    if model is None or scaler is None:
+        st.error("Failed to load the model or scaler. Please check the model file.")
         return
     
     # File upload
@@ -258,7 +251,7 @@ def main():
                         
                         if features is not None:
                             # Generate predictions using the model dictionary
-                            predictions = make_prediction(model_dict, features)
+                            predictions = make_prediction(model, scaler, features)
                             
                             if predictions is not None:
                                 # Create tabs for different visualizations
