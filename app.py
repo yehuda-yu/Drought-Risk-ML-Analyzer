@@ -6,7 +6,7 @@ import rasterio
 from rasterio.io import MemoryFile
 from rasterio.windows import Window
 import pickle
-from matplotlib.colors import LinearSegmentedColormap
+import os
 
 # Constants
 CHUNK_SIZE = 256  # Size of chunks for processing large images
@@ -62,8 +62,12 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     """Load the model and scaler from a file."""
+    model_file = 'model-svm.pkl'
+    if not os.path.exists(model_file):
+        st.error(f"Model file {model_file} not found.")
+        return None, None
     try:
-        with open('model-svm.pkl', 'rb') as f:
+        with open(model_file, 'rb') as f:
             data = pickle.load(f)
         return data['model'], data['scaler']
     except Exception as e:
@@ -104,18 +108,16 @@ def predict_geotiff(model, scaler, uploaded_file, chunk_size=CHUNK_SIZE):
                 band_count = src.count
 
                 if band_count < 11:
-                    st.error(f"Image contains only {band_count} bands, but model expects 11 bands.")
-                    return None, None, None, None, None, None
+                    st.error(f"Image contains only {band_count} bands, but model expects at least 11 bands.")
+                    return None, None, None
 
                 # Get RGB image first
                 rgb_image = get_rgb_image(src)
                 if rgb_image is None:
-                    return None, None, None, None, None, None
+                    return None, None, None
 
-                # Initialize arrays to store predictions
+                # Initialize array to store predictions
                 probability_predictions = np.zeros((height, width), dtype=np.float32)
-                positive_count = 0
-                negative_count = 0
 
                 # Progress bar
                 progress_text = st.empty()
@@ -133,6 +135,11 @@ def predict_geotiff(model, scaler, uploaded_file, chunk_size=CHUNK_SIZE):
 
                         features = data.reshape(band_count - 1, -1).T
 
+                        # Check for NaN or infinite values
+                        if np.isnan(features).any() or np.isinf(features).any():
+                            st.error("The input data contains invalid values (NaN or infinite). Please check your data.")
+                            return None, None, None
+
                         # Normalize the features
                         features_normalized = scaler.transform(features)
 
@@ -141,13 +148,6 @@ def predict_geotiff(model, scaler, uploaded_file, chunk_size=CHUNK_SIZE):
 
                         # Convert decision function to probabilities using a logistic function
                         probabilities = 1 / (1 + np.exp(-decision_values))
-
-                        # Binary predictions based on decision threshold
-                        binary_pred = np.where(probabilities > 0.5, 1, 0)
-
-                        # Count positive (no risk) and negative (risk) predictions
-                        positive_count += np.sum(binary_pred == 1)
-                        negative_count += np.sum(binary_pred == 0)
 
                         # Reshape probabilities back to original window size
                         probabilities = probabilities.reshape((window.height, window.width))
@@ -162,56 +162,75 @@ def predict_geotiff(model, scaler, uploaded_file, chunk_size=CHUNK_SIZE):
                         progress_text.text(f"Processing: {progress:.1%} complete")
 
                 progress_text.text("Processing complete!")
-                return rgb_image, probability_predictions, src.meta, positive_count, negative_count
+                return rgb_image, probability_predictions, src.meta
 
     except Exception as e:
         st.error(f"Error processing image: {str(e)}")
-        return None, None, None, None, None
+        return None, None, None
 
-def plot_predictions(rgb_image, probability_predictions, positive_count, negative_count):
+def plot_predictions(rgb_image, probability_predictions, colormap='drought', threshold=0.5):
     """Plot RGB image and probability prediction maps side by side with improved visualization."""
     try:
-        # Create custom colormap for drought predictions
-        colors = ['#313695', '#4575B4', '#74ADD1', '#ABD9E9', '#E0F3F8', 
-                 '#FFFFBF', '#FEE090', '#FDAE61', '#F46D43', '#D73027', '#A50026']
-        drought_cmap = LinearSegmentedColormap.from_list("drought", colors)
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import LinearSegmentedColormap
 
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
-        fig.patch.set_facecolor('#f0f2f6')
+        tabs = st.tabs(["RGB Image", "Probability Map", "Statistical Analysis"])
 
-        # RGB image
-        ax1.imshow(rgb_image)
-        ax1.set_title("RGB Composite (Bands 7-4-3)", pad=20, fontsize=14, fontweight='bold')
-        ax1.axis('off')
+        with tabs[0]:
+            st.subheader("RGB Composite (Bands 7-4-3)")
+            st.image(rgb_image, use_column_width=True)
 
-        # Probability prediction map
-        im2 = ax2.imshow(probability_predictions, cmap=drought_cmap)
-        ax2.set_title("Drought Risk Probability Map", pad=20, fontsize=14, fontweight='bold')
-        ax2.axis('off')
-        
-        # Add colorbar with custom styling
-        cbar = plt.colorbar(im2, ax=ax2, orientation='horizontal', pad=0.05)
-        cbar.set_label('Drought Risk Probability', fontsize=12, labelpad=10)
-        cbar.ax.tick_params(labelsize=10)
+        with tabs[1]:
+            st.subheader("Drought Risk Probability Map")
+            # Apply the threshold to create binary prediction map
+            binary_predictions = np.where(probability_predictions >= threshold, 1, 0)
 
-        # Add prediction statistics
-        total_pixels = positive_count + negative_count
-        risk_percentage = (negative_count / total_pixels) * 100
-        no_risk_percentage = (positive_count / total_pixels) * 100
-        
-        stats_text = (f"Analysis Results:\n"
-                     f"High Risk Areas: {risk_percentage:.1f}%\n"
-                     f"Low Risk Areas: {no_risk_percentage:.1f}%")
-        
-        plt.figtext(0.02, 0.02, stats_text, fontsize=12, 
-                   bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', pad=10))
+            # Create custom colormap if selected
+            if colormap == 'drought':
+                colors = ['#313695', '#4575B4', '#74ADD1', '#ABD9E9', '#E0F3F8',
+                          '#FFFFBF', '#FEE090', '#FDAE61', '#F46D43', '#D73027', '#A50026']
+                drought_cmap = LinearSegmentedColormap.from_list("drought", colors)
+                cmap = drought_cmap
+            else:
+                cmap = plt.get_cmap(colormap)
 
-        # Adjust layout
-        plt.tight_layout()
-        
-        # Display in Streamlit
-        st.pyplot(fig)
-        plt.close()
+            fig, ax = plt.subplots(figsize=(10, 8))
+            im = ax.imshow(probability_predictions, cmap=cmap)
+            ax.axis('off')
+            # Add colorbar
+            cbar = plt.colorbar(im, ax=ax, fraction=0.036, pad=0.04)
+            cbar.set_label('Drought Risk Probability', fontsize=12)
+            st.pyplot(fig)
+            plt.close()
+
+        with tabs[2]:
+            st.subheader("Statistical Analysis")
+            # Recompute positive and negative counts based on threshold
+            binary_predictions = np.where(probability_predictions >= threshold, 1, 0)
+            positive_count = np.sum(binary_predictions == 1)
+            negative_count = np.sum(binary_predictions == 0)
+            total_pixels = positive_count + negative_count
+            risk_percentage = (negative_count / total_pixels) * 100
+            no_risk_percentage = (positive_count / total_pixels) * 100
+
+            st.markdown(f"""
+            **Total Pixels Analyzed:** {total_pixels}
+
+            **High Risk Areas (probability >= {threshold}):** {risk_percentage:.2f}%
+
+            **Low Risk Areas (probability < {threshold}):** {no_risk_percentage:.2f}%
+            """)
+
+            # Plot histogram of probability predictions
+            fig, ax = plt.subplots()
+            ax.hist(probability_predictions.flatten(), bins=50, color='skyblue', edgecolor='black')
+            ax.axvline(x=threshold, color='red', linestyle='--', label=f'Threshold = {threshold}')
+            ax.set_title("Distribution of Drought Risk Probabilities")
+            ax.set_xlabel("Probability")
+            ax.set_ylabel("Frequency")
+            ax.legend()
+            st.pyplot(fig)
+            plt.close()
 
     except Exception as e:
         st.error(f"Error plotting predictions: {str(e)}")
@@ -248,15 +267,28 @@ def main():
     if uploaded_file is not None:
         with st.spinner("Processing satellite imagery..."):
             # Process image and get predictions
-            rgb_image, probability_predictions, meta, positive_count, negative_count = predict_geotiff(
+            rgb_image, probability_predictions, meta = predict_geotiff(
                 model, scaler, uploaded_file
             )
             
             if rgb_image is not None and probability_predictions is not None:
+                st.header("Visualization Settings")
+
+                # Visualization options
+                colormap_option = st.selectbox(
+                    "Select a colormap for the drought risk probability map:",
+                    options=['viridis', 'plasma', 'inferno', 'magma', 'cividis', 'drought']
+                )
+
+                threshold = st.slider(
+                    "Select the probability threshold for high-risk areas:",
+                    min_value=0.0, max_value=1.0, value=0.5, step=0.01
+                )
+
                 st.header("Analysis Results")
                 
                 # Plot predictions
-                plot_predictions(rgb_image, probability_predictions, positive_count, negative_count)
+                plot_predictions(rgb_image, probability_predictions, colormap=colormap_option, threshold=threshold)
                 
                 # Add download section
                 st.header("Download Results")
@@ -296,6 +328,35 @@ def main():
                             mime="application/octet-stream",
                             help="Download the predictions as a georeferenced TIFF file"
                         )
+
+                with st.expander("Need Help?"):
+                    st.markdown("""
+                    **Instructions:**
+
+                    1. **Upload a GeoTIFF file**: Click on 'Browse files' and select your multi-band GeoTIFF file. The file should contain at least 11 bands.
+
+                    2. **Adjust Visualization Settings**: Use the controls to select a colormap and adjust the probability threshold for high-risk areas.
+
+                    3. **View Results**: The results will be displayed in tabs:
+                       - **RGB Image**: Displays the RGB composite of bands 7, 4, and 3.
+                       - **Probability Map**: Shows the drought risk probability map.
+                       - **Statistical Analysis**: Provides statistics and histograms of the predictions.
+
+                    4. **Download Results**: Download the predictions as a CSV file or as a GeoTIFF.
+
+                    **Contact Information**: If you encounter any issues or have questions, please contact John Doe at johndoe@example.com.
+                    """)
+
+    # Add creator's information
+    st.sidebar.title("About")
+    st.sidebar.info("""
+    Developed by John Doe.
+
+    Contact: johndoe@example.com
+
+    If you use this application, please cite:
+    John Doe (2023). Advanced Drought Risk Assessment Tool. Version 1.0.
+    """)
 
 if __name__ == "__main__":
     main()
