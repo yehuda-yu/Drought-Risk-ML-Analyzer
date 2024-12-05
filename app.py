@@ -7,6 +7,9 @@ from rasterio.io import MemoryFile
 from rasterio.windows import Window
 import pickle
 import os
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+from matplotlib.colors import LinearSegmentedColormap
 
 # Constants
 CHUNK_SIZE = 256  # Size of chunks for processing large images
@@ -82,17 +85,17 @@ def get_rgb_image(src):
         blue = src.read(3)
 
         rgb = np.dstack((red, green, blue))
-        
+
         # Normalize and enhance each band separately
         for i in range(3):
-            band = rgb[:,:,i]
+            band = rgb[:, :, i]
             # Use more aggressive percentile clipping for better contrast
-            min_val = np.percentile(band, 1)  
-            max_val = np.percentile(band, 99)  
+            min_val = np.percentile(band, 1)
+            max_val = np.percentile(band, 99)
             # Normalize and apply gamma correction for brightness
             normalized = np.clip((band - min_val) / (max_val - min_val), 0, 1)
-            rgb[:,:,i] = np.power(normalized, 0.8)  
-            
+            rgb[:, :, i] = np.power(normalized, 0.8)
+
         return rgb
     except Exception as e:
         st.error(f"Error creating RGB image: {str(e)}")
@@ -168,17 +171,42 @@ def predict_geotiff(model, scaler, uploaded_file, chunk_size=CHUNK_SIZE):
         st.error(f"Error processing image: {str(e)}")
         return None, None, None
 
-def plot_predictions(rgb_image, probability_predictions, colormap='drought', threshold=0.5):
-    """Plot RGB image and probability prediction maps side by side with improved visualization."""
+def plot_predictions(rgb_image, probability_predictions, meta, colormap='drought', threshold=0.5):
+    """Plot RGB image and probability prediction maps using cartopy for improved visualization."""
     try:
         import matplotlib.pyplot as plt
-        from matplotlib.colors import LinearSegmentedColormap
+        import cartopy.crs as ccrs
+        import cartopy.feature as cfeature
+
+        # Read the geographical metadata
+        transform = meta['transform']
+        crs = meta['crs']
+
+        # Create coordinate arrays (lon, lat) for the images
+        height, width = probability_predictions.shape
+        cols, rows = np.meshgrid(np.arange(width), np.arange(height))
+        xs, ys = rasterio.transform.xy(transform, rows, cols)
+        lons = np.array(xs)
+        lats = np.array(ys)
+
+        # Set up the projection
+        projection = ccrs.PlateCarree()
 
         tabs = st.tabs(["RGB Image", "Probability Map", "Statistical Analysis"])
 
         with tabs[0]:
             st.subheader("RGB Composite (Bands 7-4-3)")
-            st.image(rgb_image, use_column_width=True)
+            fig, ax = plt.subplots(figsize=(10, 8), subplot_kw={'projection': projection})
+            ax.set_extent([lons.min(), lons.max(), lats.min(), lats.max()], crs=projection)
+            ax.add_feature(cfeature.COASTLINE)
+            ax.add_feature(cfeature.BORDERS, linestyle=':')
+            ax.add_feature(cfeature.LAND)
+            ax.add_feature(cfeature.OCEAN)
+            ax.add_feature(cfeature.RIVERS)
+            ax.gridlines(draw_labels=True)
+            ax.imshow(rgb_image, origin='upper', extent=(lons.min(), lons.max(), lats.min(), lats.max()), transform=projection)
+            st.pyplot(fig)
+            plt.close()
 
         with tabs[1]:
             st.subheader("Drought Risk Probability Map")
@@ -194,11 +222,17 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
             else:
                 cmap = plt.get_cmap(colormap)
 
-            fig, ax = plt.subplots(figsize=(10, 8))
-            im = ax.imshow(probability_predictions, cmap=cmap)
-            ax.axis('off')
-            # Add colorbar
-            cbar = plt.colorbar(im, ax=ax, fraction=0.036, pad=0.04)
+            fig, ax = plt.subplots(figsize=(10, 8), subplot_kw={'projection': projection})
+            ax.set_extent([lons.min(), lons.max(), lats.min(), lats.max()], crs=projection)
+            ax.add_feature(cfeature.COASTLINE)
+            ax.add_feature(cfeature.BORDERS, linestyle=':')
+            ax.add_feature(cfeature.LAND)
+            ax.add_feature(cfeature.OCEAN)
+            ax.add_feature(cfeature.RIVERS)
+            ax.gridlines(draw_labels=True)
+
+            im = ax.pcolormesh(lons, lats, probability_predictions, cmap=cmap, transform=projection, shading='auto')
+            cbar = plt.colorbar(im, ax=ax, orientation='vertical', fraction=0.046, pad=0.04)
             cbar.set_label('Drought Risk Probability', fontsize=12)
             st.pyplot(fig)
             plt.close()
@@ -237,25 +271,25 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
 
 def main():
     st.title("🌍 Advanced Drought Risk Assessment")
-    
+
     # Add description
     st.markdown("""
     This application uses advanced machine learning to assess drought risk from satellite imagery. 
     Upload a multi-band GeoTIFF file to generate a detailed drought risk assessment.
-    
+
     ### Features:
-    - RGB visualization of satellite data
-    - Advanced drought risk probability mapping
+    - RGB visualization of satellite data with geographical context
+    - Advanced drought risk probability mapping using Cartopy
     - Detailed statistical analysis
     - Export options for further analysis
     """)
-    
+
     # Load model
     model, scaler = load_model()
     if model is None or scaler is None:
         st.error("Failed to load the model. Please check if the model file exists.")
         return
-    
+
     # File uploader with improved UI
     st.header("Upload Satellite Image")
     uploaded_file = st.file_uploader(
@@ -263,14 +297,14 @@ def main():
         type=['tif', 'tiff'],
         help="Upload a multi-band GeoTIFF file from Venus satellite"
     )
-    
+
     if uploaded_file is not None:
         with st.spinner("Processing satellite imagery..."):
             # Process image and get predictions
             rgb_image, probability_predictions, meta = predict_geotiff(
                 model, scaler, uploaded_file
             )
-            
+
             if rgb_image is not None and probability_predictions is not None:
                 st.header("Visualization Settings")
 
@@ -286,20 +320,20 @@ def main():
                 )
 
                 st.header("Analysis Results")
-                
-                # Plot predictions
-                plot_predictions(rgb_image, probability_predictions, colormap=colormap_option, threshold=threshold)
-                
+
+                # Plot predictions using cartopy
+                plot_predictions(rgb_image, probability_predictions, meta, colormap=colormap_option, threshold=threshold)
+
                 # Add download section
                 st.header("Download Results")
                 col1, col2 = st.columns(2)
-                
+
                 # Convert predictions to CSV
                 predictions_df = pd.DataFrame({
                     'probability': probability_predictions.flatten()
                 })
                 csv = predictions_df.to_csv(index=False)
-                
+
                 with col1:
                     st.download_button(
                         label="📊 Download Predictions (CSV)",
@@ -308,18 +342,18 @@ def main():
                         mime="text/csv",
                         help="Download the raw prediction values in CSV format"
                     )
-                
+
                 # Save predictions as GeoTIFF
                 with MemoryFile() as memfile:
                     with memfile.open(driver='GTiff',
-                                    height=meta['height'],
-                                    width=meta['width'],
-                                    count=1,
-                                    dtype='float32',
-                                    crs=meta['crs'],
-                                    transform=meta['transform']) as dst:
+                                      height=meta['height'],
+                                      width=meta['width'],
+                                      count=1,
+                                      dtype='float32',
+                                      crs=meta['crs'],
+                                      transform=meta['transform']) as dst:
                         dst.write(probability_predictions, 1)
-                    
+
                     with col2:
                         st.download_button(
                             label="🗺 Download Predictions (GeoTIFF)",
@@ -338,8 +372,8 @@ def main():
                     2. **Adjust Visualization Settings**: Use the controls to select a colormap and adjust the probability threshold for high-risk areas.
 
                     3. **View Results**: The results will be displayed in tabs:
-                       - **RGB Image**: Displays the RGB composite of bands 7, 4, and 3.
-                       - **Probability Map**: Shows the drought risk probability map.
+                       - **RGB Image**: Displays the RGB composite of bands 7, 4, and 3 with geographical context.
+                       - **Probability Map**: Shows the drought risk probability map overlaid on a map.
                        - **Statistical Analysis**: Provides statistics and histograms of the predictions.
 
                     4. **Download Results**: Download the predictions as a CSV file or as a GeoTIFF.
