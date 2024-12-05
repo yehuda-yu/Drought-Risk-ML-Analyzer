@@ -104,54 +104,51 @@ def process_image(uploaded_file):
         return None, None, None, None, None
 
 def generate_forecast_map(predictions, original_shape, transform, bounds, crs):
-    """Generate a color-coded drought forecast map using cartopy"""
+    """Generate a color-coded drought forecast map using matplotlib"""
     try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import io
+
         # Reshape predictions to original image dimensions
         forecast_map = predictions.reshape(original_shape[:2])
-        
-        # Normalize predictions to [0, 1] range if needed
-        # forecast_map = (forecast_map - forecast_map.min()) / (forecast_map.max() - forecast_map.min())
-        
-        # Create figure with cartopy projection
-        fig = plt.figure(figsize=(12, 8))
-        ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-        
-        # # Set the extent of the map to focus on your data's geographic area
-        # extent = [bounds.left, bounds.right, bounds.bottom, bounds.top]
-        # ax.set_extent(extent, crs=ccrs.PlateCarree())
-        
-        # # Add map features
-        # ax.add_feature(cfeature.COASTLINE)
-        # ax.add_feature(cfeature.BORDERS, linestyle=':')
-        
+
+        # Create figure and axes
+        fig, ax = plt.subplots(figsize=(12, 8))
+
         # Plot the forecast
-        img = ax.imshow(forecast_map, 
-                        # extent=extent,
-                        # transform=ccrs.PlateCarree(),
-                        cmap='RdYlGn_r',  # Red (drought) to Green (healthy)
-                       )
-        
+        img = ax.imshow(
+            forecast_map,
+            cmap='RdYlGn_r',  # Red (drought) to Green (healthy)
+            origin='upper',
+            extent=[bounds.left, bounds.right, bounds.bottom, bounds.top],
+            aspect='auto'
+        )
+
         # Add colorbar
-        plt.colorbar(img, ax=ax, label='Drought Risk', orientation='horizontal', pad=0.05)
-        
-        # Add gridlines with labels
-        gl = ax.gridlines(draw_labels=True, linestyle='--')
-        gl.top_labels = False
-        gl.right_labels = False
-        
+        cbar = plt.colorbar(img, ax=ax, label='Drought Risk', orientation='horizontal', pad=0.05)
+
+        # Add gridlines
+        ax.grid(True, linestyle='--', alpha=0.5)
+
+        # Set labels for axes
+        ax.set_xlabel('Longitude')
+        ax.set_ylabel('Latitude')
+
         # Set title
         plt.title('Drought Risk Forecast')
-        
+
         # Save plot to buffer
-        # buf = io.BytesIO()
-        # plt.savefig(buf, format='png', bbox_inches='tight', dpi=300)
-        # buf.seek(0)
-        plt.close()
-        
-        # return buf
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', dpi=300)
+        buf.seek(0)
+        plt.close(fig)
+
+        return buf
     except Exception as e:
         st.error(f"Error generating map: {str(e)}")
         return None
+
 
 def create_leafmap(predictions, original_shape, transform, bounds, crs):
     """Create an interactive leafmap visualization"""
