@@ -110,19 +110,19 @@ def generate_forecast_map(predictions, original_shape, transform, bounds, crs):
         forecast_map = predictions.reshape(original_shape[:2])
         
         # Normalize predictions to [0, 1] range if needed
-        forecast_map = (forecast_map - forecast_map.min()) / (forecast_map.max() - forecast_map.min())
+        # forecast_map = (forecast_map - forecast_map.min()) / (forecast_map.max() - forecast_map.min())
         
         # Create figure with cartopy projection
         fig = plt.figure(figsize=(12, 8))
         ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
         
-        # Set the extent of the map to focus on your data's geographic area
-        extent = [bounds.left, bounds.right, bounds.bottom, bounds.top]
-        ax.set_extent(extent, crs=ccrs.PlateCarree())
+        # # Set the extent of the map to focus on your data's geographic area
+        # extent = [bounds.left, bounds.right, bounds.bottom, bounds.top]
+        # ax.set_extent(extent, crs=ccrs.PlateCarree())
         
-        # Add map features
-        ax.add_feature(cfeature.COASTLINE)
-        ax.add_feature(cfeature.BORDERS, linestyle=':')
+        # # Add map features
+        # ax.add_feature(cfeature.COASTLINE)
+        # ax.add_feature(cfeature.BORDERS, linestyle=':')
         
         # Plot the forecast
         img = ax.imshow(forecast_map, 
