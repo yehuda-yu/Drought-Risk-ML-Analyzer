@@ -117,7 +117,7 @@ def generate_forecast_map(predictions, original_shape, transform, bounds, crs):
         ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
         
         # # Set the extent of the map to focus on your data's geographic area
-        extent = [bounds.left, bounds.right, bounds.bottom, bounds.top]
+        # extent = [bounds.left, bounds.right, bounds.bottom, bounds.top]
         # ax.set_extent(extent, crs=ccrs.PlateCarree())
         
         # # Add map features
@@ -126,8 +126,8 @@ def generate_forecast_map(predictions, original_shape, transform, bounds, crs):
         
         # Plot the forecast
         img = ax.imshow(forecast_map, 
-                        extent=extent,
-                        transform=ccrs.PlateCarree(),
+                        # extent=extent,
+                        # transform=ccrs.PlateCarree(),
                         cmap='RdYlGn_r',  # Red (drought) to Green (healthy)
                        )
         
@@ -143,9 +143,9 @@ def generate_forecast_map(predictions, original_shape, transform, bounds, crs):
         plt.title('Drought Risk Forecast')
         
         # Save plot to buffer
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight', dpi=300)
-        buf.seek(0)
+        # buf = io.BytesIO()
+        # plt.savefig(buf, format='png', bbox_inches='tight', dpi=300)
+        # buf.seek(0)
         plt.close()
         
         return buf
