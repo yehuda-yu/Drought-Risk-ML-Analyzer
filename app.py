@@ -116,23 +116,28 @@ def generate_forecast_map(predictions, original_shape, transform, bounds, crs):
         fig = plt.figure(figsize=(12, 8))
         ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
         
+        # Set the extent of the map to focus on your data's geographic area
+        extent = [bounds.left, bounds.right, bounds.bottom, bounds.top]
+        ax.set_extent(extent, crs=ccrs.PlateCarree())
+        
         # Add map features
         ax.add_feature(cfeature.COASTLINE)
         ax.add_feature(cfeature.BORDERS, linestyle=':')
         
         # Plot the forecast
-        extent = [bounds.left, bounds.right, bounds.bottom, bounds.top]
         img = ax.imshow(forecast_map, 
-                       extent=extent,
-                       transform=ccrs.PlateCarree(),
-                       cmap='RdYlGn_r',  # Red (drought) to Green (healthy)
+                        extent=extent,
+                        transform=ccrs.PlateCarree(),
+                        cmap='RdYlGn_r',  # Red (drought) to Green (healthy)
                        )
         
         # Add colorbar
         plt.colorbar(img, ax=ax, label='Drought Risk', orientation='horizontal', pad=0.05)
         
-        # Add gridlines
-        ax.gridlines(draw_labels=True)
+        # Add gridlines with labels
+        gl = ax.gridlines(draw_labels=True, linestyle='--')
+        gl.top_labels = False
+        gl.right_labels = False
         
         # Set title
         plt.title('Drought Risk Forecast')
