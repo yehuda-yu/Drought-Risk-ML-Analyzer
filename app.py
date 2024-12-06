@@ -75,15 +75,20 @@ def load_model():
         return None, None
 
 def get_rgb_image(src):
-    """Extract RGB bands (7, 4, 3) from the GeoTIFF file and enhance brightness."""
+    """Extract RGB bands (7, 4, 3) from the GeoTIFF file and normalize."""
     try:
-        red = src.read(7)
-        green = src.read(4)
-        blue = src.read(3)
+        red = src.read(7).astype(np.float32)
+        green = src.read(4).astype(np.float32)
+        blue = src.read(3).astype(np.float32)
 
         rgb = np.dstack((red, green, blue))
-        rgb = rgb / rgb.max()  # Normalize to 0-1 rang
-        
+        # Simple normalization to [0,1]
+        rgb_min, rgb_max = np.nanmin(rgb), np.nanmax(rgb)
+        if rgb_max > rgb_min:
+            rgb = (rgb - rgb_min) / (rgb_max - rgb_min)
+        else:
+            rgb = np.zeros_like(rgb)  # fallback if no variation
+
         return rgb
     except Exception as e:
         st.error(f"Error creating RGB image: {str(e)}")
@@ -160,43 +165,42 @@ def predict_geotiff(model, scaler, uploaded_file, chunk_size=CHUNK_SIZE):
         return None, None, None
 
 def plot_predictions(rgb_image, probability_predictions, colormap='drought', threshold=0.5):
-    """Plot RGB image and probability prediction maps side by side with improved visualization."""
+    """Plot RGB image, probability map, statistical analysis, and an overlay tab with a slider for transparency."""
     try:
         import matplotlib.pyplot as plt
         from matplotlib.colors import LinearSegmentedColormap
 
-        tabs = st.tabs(["RGB Image", "Probability Map", "Statistical Analysis"])
+        # Create tabs including the new Overlay tab
+        tabs = st.tabs(["RGB Image", "Probability Map", "Statistical Analysis", "Overlay"])
 
+        # Determine colormap
+        if colormap == 'drought':
+            colors = ['#313695', '#4575B4', '#74ADD1', '#ABD9E9', '#E0F3F8',
+                      '#FFFFBF', '#FEE090', '#FDAE61', '#F46D43', '#D73027', '#A50026']
+            drought_cmap = LinearSegmentedColormap.from_list("drought", colors)
+            cmap = drought_cmap
+        else:
+            cmap = plt.get_cmap(colormap)
+
+        # TAB 1: RGB Image
         with tabs[0]:
             st.subheader("RGB Composite (Bands 7-4-3)")
             st.image(rgb_image, use_column_width=True)
 
+        # TAB 2: Probability Map
         with tabs[1]:
             st.subheader("Drought Risk Probability Map")
-            # Apply the threshold to create binary prediction map
-            binary_predictions = np.where(probability_predictions >= threshold, 1, 0)
-
-            # Create custom colormap if selected
-            if colormap == 'drought':
-                colors = ['#313695', '#4575B4', '#74ADD1', '#ABD9E9', '#E0F3F8',
-                          '#FFFFBF', '#FEE090', '#FDAE61', '#F46D43', '#D73027', '#A50026']
-                drought_cmap = LinearSegmentedColormap.from_list("drought", colors)
-                cmap = drought_cmap
-            else:
-                cmap = plt.get_cmap(colormap)
-
             fig, ax = plt.subplots(figsize=(10, 8))
             im = ax.imshow(probability_predictions, cmap=cmap)
             ax.axis('off')
-            # Add colorbar
             cbar = plt.colorbar(im, ax=ax, fraction=0.036, pad=0.04)
             cbar.set_label('Drought Risk Probability', fontsize=12)
             st.pyplot(fig)
             plt.close()
 
+        # TAB 3: Statistical Analysis
         with tabs[2]:
             st.subheader("Statistical Analysis")
-            # Recompute positive and negative counts based on threshold
             binary_predictions = np.where(probability_predictions >= threshold, 1, 0)
             positive_count = np.sum(binary_predictions == 1)
             negative_count = np.sum(binary_predictions == 0)
@@ -212,7 +216,6 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
             **Low Risk Areas (probability < {threshold}):** {no_risk_percentage:.2f}%
             """)
 
-            # Plot histogram of probability predictions
             fig, ax = plt.subplots()
             ax.hist(probability_predictions.flatten(), bins=50, color='skyblue', edgecolor='black')
             ax.axvline(x=threshold, color='red', linestyle='--', label=f'Threshold = {threshold}')
@@ -220,6 +223,21 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
             ax.set_xlabel("Probability")
             ax.set_ylabel("Frequency")
             ax.legend()
+            st.pyplot(fig)
+            plt.close()
+
+        # TAB 4: Overlay (RGB + Forecast)
+        with tabs[3]:
+            st.subheader("RGB + Forecast Overlay")
+            # Slider for adjusting transparency
+            alpha = st.slider("Set Forecast Layer Transparency", min_value=0.0, max_value=1.0, value=0.5, step=0.01)
+            
+            fig, ax = plt.subplots(figsize=(10, 8))
+            # Show RGB base
+            ax.imshow(rgb_image)
+            # Overlay the probability predictions with chosen alpha
+            im = ax.imshow(probability_predictions, cmap=cmap, alpha=alpha)
+            ax.axis('off')
             st.pyplot(fig)
             plt.close()
 
@@ -238,6 +256,7 @@ def main():
     - RGB visualization of satellite data
     - Advanced drought risk probability mapping
     - Detailed statistical analysis
+    - Overlay view with adjustable transparency
     - Export options for further analysis
     """)
     
@@ -328,10 +347,11 @@ def main():
 
                     2. **Adjust Visualization Settings**: Use the controls to select a colormap and adjust the probability threshold for high-risk areas.
 
-                    3. **View Results**: The results will be displayed in tabs:
-                       - **RGB Image**: Displays the RGB composite of bands 7, 4, and 3.
+                    3. **View Results**: The results will be displayed in four tabs:
+                       - **RGB Image**: Displays the RGB composite (Bands 7, 4, and 3).
                        - **Probability Map**: Shows the drought risk probability map.
                        - **Statistical Analysis**: Provides statistics and histograms of the predictions.
+                       - **Overlay**: Overlays the probability map on the RGB image with a slider for transparency.
 
                     4. **Download Results**: Download the predictions as a CSV file or as a GeoTIFF.
 
