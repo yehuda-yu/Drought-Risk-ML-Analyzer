@@ -82,17 +82,8 @@ def get_rgb_image(src):
         blue = src.read(3)
 
         rgb = np.dstack((red, green, blue))
+        rgb = rgb / rgb.max()  # Normalize to 0-1 rang
         
-        # Normalize and enhance each band separately
-        for i in range(3):
-            band = rgb[:,:,i]
-            # Use more aggressive percentile clipping for better contrast
-            min_val = np.percentile(band, 1)  
-            max_val = np.percentile(band, 99)  
-            # Normalize and apply gamma correction for brightness
-            normalized = np.clip((band - min_val) / (max_val - min_val), 0, 1)
-            rgb[:,:,i] = np.power(normalized, 0.8)  
-            
         return rgb
     except Exception as e:
         st.error(f"Error creating RGB image: {str(e)}")
