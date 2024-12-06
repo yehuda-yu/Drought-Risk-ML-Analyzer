@@ -165,10 +165,11 @@ def predict_geotiff(model, scaler, uploaded_file, chunk_size=CHUNK_SIZE):
         return None, None, None
 
 def plot_predictions(rgb_image, probability_predictions, colormap='drought', threshold=0.5):
-    """Plot RGB image, probability map, statistical analysis, and an overlay tab with a slider for transparency."""
+    """Plot RGB image, probability map, statistical analysis, and an overlay with risk-only coloration."""
     try:
         import matplotlib.pyplot as plt
         from matplotlib.colors import LinearSegmentedColormap
+        import numpy as np
 
         # Create tabs including the new Overlay tab
         tabs = st.tabs(["RGB Image", "Probability Map", "Statistical Analysis", "Overlay"])
@@ -226,17 +227,21 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
             st.pyplot(fig)
             plt.close()
 
-        # TAB 4: Overlay (RGB + Forecast)
+        # TAB 4: Overlay (RGB + Forecast, but only dryness shown)
         with tabs[3]:
-            st.subheader("RGB + Forecast Overlay")
+            st.subheader("RGB + Forecast Overlay (Risk-Only)")
             # Slider for adjusting transparency
             alpha = st.slider("Set Forecast Layer Transparency", min_value=0.0, max_value=1.0, value=0.5, step=0.01)
-            
+
+            # Create a masked array where areas below the threshold are masked out
+            dry_mask = probability_predictions < threshold
+            probability_predictions_masked = np.ma.array(probability_predictions, mask=dry_mask)
+
             fig, ax = plt.subplots(figsize=(10, 8))
             # Show RGB base
-            ax.imshow(rgb_image)
-            # Overlay the probability predictions with chosen alpha
-            im = ax.imshow(probability_predictions, cmap=cmap, alpha=alpha)
+            ax.imshow(rgb_image, origin='upper')
+            # Overlay only drought risk areas; masked areas are transparent by default
+            im = ax.imshow(probability_predictions_masked, cmap=cmap, alpha=alpha)
             ax.axis('off')
             st.pyplot(fig)
             plt.close()
