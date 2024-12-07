@@ -250,12 +250,12 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
         st.error(f"Error plotting predictions: {str(e)}")
 
 def main():
-    st.title("🌍 Advanced Drought Risk Assessment")
+    st.title("🌍 Forest Drought Risk Assessment")
     
     # Add description
     st.markdown("""
-    This application uses advanced machine learning to assess drought risk from satellite imagery. 
-    Upload a multi-band GeoTIFF file to generate a detailed drought risk assessment.
+    This application uses advanced machine learning to assess drought risk from VenUs satellite imagery. 
+    Upload a GeoTIFF file to generate a detailed drought risk assessment.
     
     ### Features:
     - RGB visualization of satellite data
