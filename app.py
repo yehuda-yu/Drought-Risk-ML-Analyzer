@@ -231,7 +231,7 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
     # TAB 1: RGB Composite
     with tabs[0]:
         st.subheader("RGB Composite (Bands 7-4-3)")
-        st.image(rgb_image, use_column_width=True)
+        st.image(rgb_image, use_container_width =True)
 
     # TAB 2: Probability Map
     with tabs[1]:
