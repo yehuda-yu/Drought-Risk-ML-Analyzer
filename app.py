@@ -64,15 +64,18 @@ st.markdown("""
         margin: 1rem 0 !important;
     }
     .citation-box {
-        background-color: #f2f2f2;
-        border-left: 4px solid #4CAF50;
-        padding: 1rem;
-        margin-bottom: 2rem;
-    }
-    .citation-box p {
-        margin: 0;
-        font-size: 0.95rem;
-    }
+    background-color: #f2f2f2;
+    border-left: 4px solid #4CAF50;
+    padding: 1rem;
+    margin-bottom: 2rem;
+    color: #2C3E50; /* Set a dark text color here */
+}
+
+.citation-box p {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #2C3E50; /* Ensure text within p tags is also dark */
+}
     .upload-instructions {
         font-size: 0.9rem;
         color: #555;
