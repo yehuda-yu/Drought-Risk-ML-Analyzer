@@ -14,7 +14,7 @@ import os
 st.set_page_config(
     page_title="Drought Risk Assessment Application",
     page_icon="🌍",
-    layout="wide"
+    # layout="wide"
 )
 
 # Custom CSS for a refined UI
