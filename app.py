@@ -359,41 +359,55 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
         fig = plt.figure(figsize=(12, 10))
         gs = gridspec.GridSpec(1, 1)
         
-        if meta is not None and 'crs' in meta and 'transform' in meta:
-            # Try to create a proper georeferenced plot with coordinate system
-            try:
-                # Get the projection from the metadata
-                projection = ccrs.PlateCarree()
-                
-                # Create map with coordinate reference system
-                ax = fig.add_subplot(gs[0, 0], projection=projection)
-                
-                # Get the extent in the target projection
-                extent = plotting_extent(
-                    meta['transform'], 
-                    (probability_predictions.shape[1], probability_predictions.shape[0])
-                )
-                
-                # Plot with proper geographic extent
-                im = ax.imshow(
-                    probability_predictions, 
-                    cmap=cmap,
-                    extent=extent,
-                    transform=ccrs.PlateCarree(),
-                    origin='upper'
-                )
-                
-                # Add grid lines without labels
-                add_coordinate_grid(ax, meta)
-                
-            except Exception as e:
-                # Fall back to regular plot if georeferencing fails
-                st.warning(f"Could not create georeferenced map: {str(e)}")
+        # Standard non-georeferenced plot as fallback option
+        try:
+            if meta is not None and 'crs' in meta and 'transform' in meta:
+                try:
+                    # Get the projection from the metadata
+                    projection = ccrs.PlateCarree()
+                    
+                    # Create map with coordinate reference system
+                    ax = fig.add_subplot(gs[0, 0], projection=projection)
+                    
+                    # Get the extent in the target projection - handle potential issues
+                    try:
+                        extent = plotting_extent(
+                            meta['transform'], 
+                            (probability_predictions.shape[1], probability_predictions.shape[0])
+                        )
+                        
+                        # Plot with proper geographic extent
+                        im = ax.imshow(
+                            probability_predictions, 
+                            cmap=cmap,
+                            extent=extent,
+                            transform=ccrs.PlateCarree(),
+                            origin='upper'
+                        )
+                        
+                        # Add grid lines without labels
+                        try:
+                            gl = ax.gridlines(crs=ccrs.PlateCarree(), alpha=0.15, 
+                                             linestyle='--', color='gray', draw_labels=False)
+                        except:
+                            # Silently fail if gridlines can't be added
+                            pass
+                    except Exception:
+                        # If extent calculation fails, fall back to simple plot
+                        raise ValueError("Could not calculate plot extent")
+                        
+                except Exception:
+                    # Fall back to regular plot if any part of georeferencing fails
+                    ax = fig.add_subplot(gs[0, 0])
+                    im = ax.imshow(probability_predictions, cmap=cmap)
+                    ax.axis('off')
+            else:
+                # Standard non-georeferenced plot
                 ax = fig.add_subplot(gs[0, 0])
                 im = ax.imshow(probability_predictions, cmap=cmap)
                 ax.axis('off')
-        else:
-            # Standard non-georeferenced plot
+        except Exception:
+            # Ultimate fallback - ensure we always show something
             ax = fig.add_subplot(gs[0, 0])
             im = ax.imshow(probability_predictions, cmap=cmap)
             ax.axis('off')
