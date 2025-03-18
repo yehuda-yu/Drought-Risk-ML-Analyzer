@@ -318,45 +318,6 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
             path_effects=[PathEffects.withStroke(linewidth=2, foreground='white')]
         )
     
-    # Function to add scale bar to plots
-    def add_scale_bar(ax, length_m, meta=None, pos=(0.05, 0.05), 
-                      width_fraction=0.025, color='#999999'):
-        """Add a scale bar to the plot"""
-        if meta is None or 'transform' not in meta:
-            return  # Can't add scale bar without transform
-
-        # Get pixel resolution in meters
-        pixel_size_x = abs(meta['transform'][0])
-        length_px = length_m / pixel_size_x
-        img_width = ax.get_window_extent().width
-        bar_width = length_px / probability_predictions.shape[1] * img_width
-
-        # Add scale bar
-        bar_pos_x = pos[0] * img_width
-        bar_pos_y = pos[1] * ax.get_window_extent().height
-        bar_height = width_fraction * img_width
-
-        # Scale bar
-        rect = mpatches.Rectangle(
-            (bar_pos_x, bar_pos_y), bar_width, bar_height,
-            fc=color, ec=color, transform=None, clip_on=False,
-            path_effects=[PathEffects.withStroke(linewidth=2, foreground='white')]
-        )
-        ax.add_patch(rect)
-        
-        # Scale bar label
-        if length_m >= 1000:
-            label = f"{length_m/1000:.0f} km"
-        else:
-            label = f"{length_m:.0f} m"
-            
-        ax.text(
-            bar_pos_x + bar_width/2, bar_pos_y + 1.5*bar_height,
-            label, ha='center', va='bottom', fontsize=9, color=color,
-            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=2),
-            path_effects=[PathEffects.withStroke(linewidth=2, foreground='white')]
-        )
-
     # Function to add coordinate grid to plots (simplified)
     def add_coordinate_grid(ax, meta=None, grid_alpha=0.15, label_size=8):
         """Add coordinate grid to the plot without labels"""
@@ -384,21 +345,8 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
         ax.set_title(f"{satellite_display} RGB Composite", fontsize=14)
         ax.axis('off')
         
-        # Add cartographic elements if metadata is available
-        if meta is not None:
-            # Calculate appropriate scale bar length based on image dimensions
-            if 'transform' in meta:
-                pixel_size_x = abs(meta['transform'][0])
-                img_width_m = pixel_size_x * probability_predictions.shape[1]
-                scale_bar_length = np.round(img_width_m / 5, -2)  # Round to nearest 100
-                add_scale_bar(ax, scale_bar_length, meta, color='#999999')
-            
-            # Add north arrow in light gray
-            add_north_arrow(ax, color='#999999')
-            
-            # Add coordinates if available in metadata
-            if 'transform' in meta and 'crs' in meta:
-                st.info("Geographic coordinates are embedded in the GeoTIFF. Use the Probability Map tab to view with coordinate grid.")
+        # Add north arrow only
+        add_north_arrow(ax, color='#999999')
         
         st.pyplot(fig)
         plt.close()
@@ -450,14 +398,7 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
             im = ax.imshow(probability_predictions, cmap=cmap)
             ax.axis('off')
         
-        # Add scale bar if metadata is available
-        if meta is not None and 'transform' in meta:
-            pixel_size_x = abs(meta['transform'][0])
-            img_width_m = pixel_size_x * probability_predictions.shape[1]
-            scale_bar_length = np.round(img_width_m / 5, -2)  # Round to nearest 100
-            add_scale_bar(ax, scale_bar_length, meta)
-        
-        # Add north arrow
+        # Add north arrow only
         add_north_arrow(ax)
         
         # Add colorbar
@@ -550,14 +491,7 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
         red_patch = mpatches.Patch(color='red', alpha=alpha, label=f'High Risk (≥{threshold:.2f})')
         ax.legend(handles=[red_patch], loc='lower right')
         
-        # Add scale bar if metadata is available
-        if meta is not None and 'transform' in meta:
-            pixel_size_x = abs(meta['transform'][0])
-            img_width_m = pixel_size_x * probability_predictions.shape[1]
-            scale_bar_length = np.round(img_width_m / 5, -2)  # Round to nearest 100
-            add_scale_bar(ax, scale_bar_length, meta, color='#999999')
-        
-        # Add north arrow in light gray
+        # Add north arrow only
         add_north_arrow(ax, color='#999999')
         
         st.pyplot(fig)
