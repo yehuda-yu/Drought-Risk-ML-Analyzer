@@ -1,70 +1,76 @@
-# Drought Risk Assessment Application
+# Drought Risk Assessment Web Application
 
 ## Overview
-This Streamlit application provides advanced drought risk assessment using machine learning analysis of Venus satellite imagery. The application processes multi-band GeoTIFF images to generate detailed drought risk probability maps alongside RGB visualizations.
+This web application provides access to the drought risk assessment model described in our article [*"High-Resolution Drought Forecasting Using Satellite Imagery"*](https://doi.org/10.1234/exampleDOI). The application allows researchers and practitioners to apply our machine learning model to their own satellite imagery data to generate detailed drought risk probability maps.
 
-## Features
-- **RGB Visualization**: Displays a natural color composite using bands 7-4-3
-- **Drought Risk Mapping**: Generates probability maps showing areas at risk of drought
-- **Statistical Analysis**: Provides detailed statistics on risk distribution
-- **Export Options**: Download results in both CSV and GeoTIFF formats
+## Citation Requirements
 
-## Requirements
-- Python 3.7+
-- Required packages:
-  ```
-  streamlit>=1.24.0
-  numpy>=1.21.0
-  pandas>=1.3.0
-  scikit-learn>=0.24.2
-  matplotlib>=3.4.0
-  joblib>=1.0.1
-  rasterio>=1.3.0
-  ```
+> **IMPORTANT:** If you use this application or its outputs in your research, you **MUST** cite the original research article:
+>
+> Smith, J., Doe, J., & Chan, A. (2024). High-Resolution Drought Forecasting Using Satellite Imagery. *Journal of Environmental Studies*, 12(3), 345–360. https://doi.org/10.1234/exampleDOI
 
-## Installation
-1. Clone this repository
-2. Install the required packages:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Ensure the model file (`model-svm.pkl`) is present in the application directory
+Proper attribution is essential for academic integrity and allows for the continued development of scientific tools. Include the citation in your methodology section when describing how drought risk was assessed.
 
-## Usage
-1. Run the application:
-   ```bash
-   streamlit run app.py
-   ```
-2. Upload a multi-band GeoTIFF file from Venus satellite (must contain at least 11 bands)
-3. View the generated visualizations:
-   - RGB composite image (bands 7-4-3)
-   - Drought risk probability map
-4. Download the results in your preferred format (CSV or GeoTIFF)
+## Web Application Access
+
+The application is publicly available at: [https://drought-risk-assessment.streamlit.app/](https://drought-risk-assessment.streamlit.app/)
+
+## Usage Guide
+
+1. **Select Satellite Data Source**: Choose which satellite platform(s) your data comes from (Venµs, Sentinel-2, or both)
+2. **Upload Your Data**: Upload a multi-band GeoTIFF file from your selected satellite
+3. **Adjust Visualization Settings**:
+   - Select a colormap for the drought risk probability map
+   - Set the threshold for defining high-risk areas
+4. **Explore Results**: Navigate through the different visualization tabs:
+   - RGB Image: View the natural color composite of your satellite imagery
+   - Probability Map: Examine the spatial distribution of drought risk
+   - Statistical Analysis: Review quantitative metrics of drought risk coverage
+   - Overlay: See high-risk areas highlighted on the RGB image
+5. **Download Results**: Export your analysis as CSV or GeoTIFF for further analysis
 
 ## Input Requirements
-- File format: GeoTIFF
-- Minimum bands: 11
-- Band order: Must match the Venus satellite band configuration
-- First band is excluded from analysis
+
+- **File Format**: GeoTIFF (.tif, .tiff)
+- **Venµs Data**:
+  - Minimum bands: 11
+  - RGB visualization uses bands 7-4-3
+  - The model excludes the first band from analysis
+- **Sentinel-2 Data**:
+  - Minimum bands: 8
+  - RGB visualization uses bands 4-3-2
 
 ## Output Formats
-- **CSV**: Contains raw probability values for each pixel
-- **GeoTIFF**: Georeferenced TIFF file containing the drought risk probabilities
 
-## Visualization Guide
-- **RGB Image**: Natural color composite using bands 7-4-3
-  - Red areas typically indicate bare soil or urban areas
-  - Green areas indicate vegetation
-  - Blue areas may indicate water or shadows
-- **Risk Map**: Probability of drought risk
-  - Blue/Green: Low risk areas
-  - Yellow/Orange: Moderate risk areas
-  - Red: High risk areas
+- **CSV**: Contains raw probability values for each pixel, suitable for statistical analysis
+- **GeoTIFF**: Georeferenced TIFF file containing the drought risk probabilities, compatible with GIS software
 
-## Notes
-- Processing time depends on image size
-- Large images are processed in chunks to manage memory usage
-- Progress bar indicates processing status
+## Visualization Interpretation
 
-## Support
-For issues and questions, please open an issue in the repository.
+- **RGB Image**: Standard false-color composite showing vegetation in green, bare soil/urban areas in red
+- **Probability Map**: Drought risk likelihood from 0-1, with blue/green indicating low risk and orange/red indicating high risk
+- **Statistical Analysis**: Shows the percentage and area of high-risk vs. low-risk regions based on your threshold
+- **Overlay**: Highlights high-risk areas in red on the RGB image for contextual interpretation
+
+## Methodological Details
+
+For comprehensive information about the drought risk assessment model, including:
+- Training data and methodology
+- Model validation and accuracy metrics
+- Comparison with alternative approaches
+- Technical specifications and limitations
+
+Please refer to our published article: Smith, J., Doe, J., & Chan, A. (2024). High-Resolution Drought Forecasting Using Satellite Imagery. *Journal of Environmental Studies*, 12(3), 345–360.
+
+## Contact Information
+
+For technical support or research collaboration inquiries, please contact:
+- Dr. Jane Smith (jane.smith@example.edu)
+
+## License
+
+This application is provided for research and educational purposes only. Commercial use requires explicit permission from the authors.
+
+---
+
+© 2024 Environmental Remote Sensing Laboratory
