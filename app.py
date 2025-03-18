@@ -14,6 +14,7 @@ import os
 from matplotlib.transforms import Bbox
 import cartopy.crs as ccrs
 from matplotlib.patches import FancyArrowPatch
+import matplotlib.patheffects as PathEffects
 
 # --------------------------------------------------------------------------------
 # Page and UI Configuration
@@ -286,25 +287,40 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
     # Create tabs for visualization
     tabs = st.tabs(["RGB Image", "Probability Map", "Statistical Analysis", "Overlay"])
 
-    # Function to add north arrow to plots
-    def add_north_arrow(ax, pos=(0.95, 0.05), size=0.1):
-        """Add a north arrow to the plot"""
+    # Function to add professional north arrow to plots
+    def add_north_arrow(ax, pos=(0.95, 0.05), size=0.1, color='#999999'):
+        """Add a more professional north arrow to the plot"""
+        # Main arrow
+        arrow_start = (pos[0], pos[1])
+        arrow_end = (pos[0], pos[1] + size)
+        
+        # Create arrow with custom styling
         arrow = FancyArrowPatch(
-            (pos[0], pos[1]), (pos[0], pos[1] + size),
-            transform=ax.transAxes, 
+            arrow_start, arrow_end,
+            transform=ax.transAxes,
             arrowstyle='-|>', 
-            mutation_scale=20, 
-            linewidth=1.5,
-            color='black'
+            lw=1.2,
+            mutation_scale=15, 
+            color=color,
+            path_effects=[PathEffects.withStroke(linewidth=2, foreground='white')]
         )
         ax.add_patch(arrow)
-        ax.text(pos[0], pos[1] + size + 0.01, 'N', 
-                transform=ax.transAxes,
-                ha='center', fontsize=12, fontweight='bold')
+        
+        # Add the "N" character with professional styling
+        txt = ax.text(
+            pos[0], pos[1] + size + 0.01, 'N', 
+            transform=ax.transAxes,
+            ha='center', 
+            va='bottom',
+            fontsize=10, 
+            fontweight='bold',
+            color=color,
+            path_effects=[PathEffects.withStroke(linewidth=2, foreground='white')]
+        )
     
     # Function to add scale bar to plots
     def add_scale_bar(ax, length_m, meta=None, pos=(0.05, 0.05), 
-                      width_fraction=0.025, color='black'):
+                      width_fraction=0.025, color='#999999'):
         """Add a scale bar to the plot"""
         if meta is None or 'transform' not in meta:
             return  # Can't add scale bar without transform
@@ -323,7 +339,8 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
         # Scale bar
         rect = mpatches.Rectangle(
             (bar_pos_x, bar_pos_y), bar_width, bar_height,
-            fc=color, ec=color, transform=None, clip_on=False
+            fc=color, ec=color, transform=None, clip_on=False,
+            path_effects=[PathEffects.withStroke(linewidth=2, foreground='white')]
         )
         ax.add_patch(rect)
         
@@ -336,29 +353,20 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
         ax.text(
             bar_pos_x + bar_width/2, bar_pos_y + 1.5*bar_height,
             label, ha='center', va='bottom', fontsize=9, color=color,
-            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=2)
+            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=2),
+            path_effects=[PathEffects.withStroke(linewidth=2, foreground='white')]
         )
 
-    # Function to add coordinate grid to plots
-    def add_coordinate_grid(ax, meta=None, grid_alpha=0.3, label_size=8):
-        """Add coordinate grid to the plot"""
+    # Function to add coordinate grid to plots (simplified)
+    def add_coordinate_grid(ax, meta=None, grid_alpha=0.15, label_size=8):
+        """Add coordinate grid to the plot without labels"""
         if meta is None or 'transform' not in meta or 'crs' not in meta:
             return  # Can't add grid without transform and CRS
         
         try:
-            # Try to use cartopy to add a proper coordinate grid
-            extent = plotting_extent(
-                meta['transform'], (probability_predictions.shape[1], 
-                                    probability_predictions.shape[0])
-            )
-            
-            # Add graticule lines (coordinate grid)
+            # Try to use cartopy to add a proper coordinate grid without labels
             gl = ax.gridlines(crs=ccrs.PlateCarree(), alpha=grid_alpha, 
-                              linestyle='--', color='gray', draw_labels=True)
-            gl.top_labels = False
-            gl.right_labels = False
-            gl.ylabel_style = {'size': label_size}
-            gl.xlabel_style = {'size': label_size}
+                             linestyle='--', color='gray', draw_labels=False)
         except Exception:
             # Fallback: add a simple grid
             ax.grid(alpha=grid_alpha, linestyle='--', color='gray')
@@ -367,9 +375,12 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
     with tabs[0]:
         st.subheader(f"{satellite_display} RGB Composite")
         
+        # Enhance RGB image brightness
+        brightened_rgb = np.clip(rgb_image * 1.3, 0, 1)  # Increase brightness by 30%
+        
         # Create figure with enhanced cartographic elements
         fig, ax = plt.subplots(figsize=(10, 8))
-        im = ax.imshow(rgb_image)
+        im = ax.imshow(brightened_rgb)
         ax.set_title(f"{satellite_display} RGB Composite", fontsize=14)
         ax.axis('off')
         
@@ -380,10 +391,10 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
                 pixel_size_x = abs(meta['transform'][0])
                 img_width_m = pixel_size_x * probability_predictions.shape[1]
                 scale_bar_length = np.round(img_width_m / 5, -2)  # Round to nearest 100
-                add_scale_bar(ax, scale_bar_length, meta)
+                add_scale_bar(ax, scale_bar_length, meta, color='#999999')
             
-            # Add north arrow
-            add_north_arrow(ax)
+            # Add north arrow in light gray
+            add_north_arrow(ax, color='#999999')
             
             # Add coordinates if available in metadata
             if 'transform' in meta and 'crs' in meta:
@@ -424,7 +435,7 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
                     origin='upper'
                 )
                 
-                # Add grid lines
+                # Add grid lines without labels
                 add_coordinate_grid(ax, meta)
                 
             except Exception as e:
@@ -524,8 +535,9 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
         st.subheader(f"{satellite_display} RGB + Forecast Overlay (High-Risk Areas)")
         alpha = st.slider("Set Forecast Layer Transparency", min_value=0.0, max_value=1.0, value=0.5, step=0.01)
 
-        # Create overlay: areas above threshold shown in a contrasting color
-        overlay = rgb_image.copy()
+        # Create overlay with brightened RGB image
+        brightened_rgb = np.clip(rgb_image * 1.3, 0, 1)  # Increase brightness by 30%
+        overlay = brightened_rgb.copy()
         mask = probability_predictions >= threshold
         overlay[mask] = (1 - alpha) * overlay[mask] + alpha * np.array([1, 0, 0])  # blend with red
 
@@ -543,10 +555,10 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
             pixel_size_x = abs(meta['transform'][0])
             img_width_m = pixel_size_x * probability_predictions.shape[1]
             scale_bar_length = np.round(img_width_m / 5, -2)  # Round to nearest 100
-            add_scale_bar(ax, scale_bar_length, meta)
+            add_scale_bar(ax, scale_bar_length, meta, color='#999999')
         
-        # Add north arrow
-        add_north_arrow(ax)
+        # Add north arrow in light gray
+        add_north_arrow(ax, color='#999999')
         
         st.pyplot(fig)
         plt.close()
