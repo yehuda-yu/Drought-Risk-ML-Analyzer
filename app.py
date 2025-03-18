@@ -544,7 +544,7 @@ def main():
     st.markdown("""
     <div class="citation-box">
     <p><strong>Citation:</strong> If you use this application or the model's outputs in your research, please cite:</p>
-    <p><em>Smith, J., Doe, J., & Chan, A. (2024). High-Resolution Drought Forecasting Using Satellite Imagery. Journal of Environmental Studies, 12(3), 345–360. DOI:10.1234/exampleDOI</em></p>
+    <p><em>XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</em></p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -738,8 +738,7 @@ def main():
 
     **Citation Reminder:**  
     Please cite the associated publication when using these results:
-    *Smith, J., Doe, J., & Chan, A. (2024). High-Resolution Drought Forecasting Using Satellite Imagery. Journal of Environmental Studies, 12(3), 345–360. DOI:10.1234/exampleDOI*
-    """)
+    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX""")
 
 if __name__ == "__main__":
     main()
