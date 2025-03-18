@@ -81,6 +81,12 @@ st.markdown("""
         color: #555;
         margin-bottom: 1rem;
     }
+    .satellite-selector {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 4px;
+        margin-bottom: 1.5rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -88,9 +94,9 @@ st.markdown("""
 # Model Loading and Utilities
 # --------------------------------------------------------------------------------
 @st.cache_resource
-def load_model():
+def load_venus_model():
     """
-    Load the trained model and corresponding scaler from a pickle file.
+    Load the trained Venus satellite model and corresponding scaler from a pickle file.
 
     The model is a Support Vector Machine (SVM) designed for drought risk 
     assessment using multi-band Venµs satellite imagery.
@@ -104,18 +110,49 @@ def load_model():
             data = pickle.load(f)
         return data['model'], data['scaler']
     except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
+        st.error(f"Error loading Venus model: {str(e)}")
         return None, None
 
-def get_rgb_image(src):
+@st.cache_resource
+def load_sentinel2_model():
     """
-    Extract RGB bands (7, 4, 3) from the GeoTIFF file and normalize them to [0,1].
+    Load the trained Sentinel-2 satellite model and corresponding scaler from a pickle file.
+
+    The model is a Support Vector Machine (SVM) designed for drought risk 
+    assessment using multi-band Sentinel-2 satellite imagery.
+    """
+    model_file = 'S2_svm_classification_model.pkl'
+    if not os.path.exists(model_file):
+        st.error(f"Model file {model_file} not found.")
+        return None, None
+    try:
+        with open(model_file, 'rb') as f:
+            data = pickle.load(f)
+        return data['model'], data['scaler']
+    except Exception as e:
+        st.error(f"Error loading Sentinel-2 model: {str(e)}")
+        return None, None
+
+def get_rgb_image(src, satellite_type):
+    """
+    Extract RGB bands from the GeoTIFF file and normalize them to [0,1].
     This yields a visually interpretable composite image of the region.
+    
+    Parameters:
+    - src: Rasterio data source
+    - satellite_type: Either 'venus' or 'sentinel2' to determine appropriate bands
     """
     try:
-        red = src.read(7).astype(np.float32)
-        green = src.read(4).astype(np.float32)
-        blue = src.read(3).astype(np.float32)
+        if satellite_type == "venus":
+            # Venus bands 7, 4, 3 for RGB
+            red = src.read(7).astype(np.float32)
+            green = src.read(4).astype(np.float32)
+            blue = src.read(3).astype(np.float32)
+        else:  # sentinel2
+            # Sentinel-2 bands 4, 3, 2 for RGB (common RGB mapping)
+            red = src.read(4).astype(np.float32)
+            green = src.read(3).astype(np.float32)
+            blue = src.read(2).astype(np.float32)
 
         rgb = np.dstack((red, green, blue))
         rgb_min, rgb_max = np.nanmin(rgb), np.nanmax(rgb)
@@ -130,7 +167,7 @@ def get_rgb_image(src):
         st.error(f"Error creating RGB image: {str(e)}")
         return None
 
-def predict_geotiff(model, scaler, uploaded_file, chunk_size=256):
+def predict_geotiff(model, scaler, uploaded_file, satellite_type, chunk_size=256):
     """
     Predict drought risk probabilities on a given GeoTIFF using the trained model.
 
@@ -138,6 +175,7 @@ def predict_geotiff(model, scaler, uploaded_file, chunk_size=256):
     - model: Trained SVM model for drought risk assessment.
     - scaler: Scaler used to normalize input features.
     - uploaded_file: The uploaded GeoTIFF file.
+    - satellite_type: Either 'venus' or 'sentinel2'
     - chunk_size: Size of chunks to process large images incrementally.
 
     Returns:
@@ -150,12 +188,15 @@ def predict_geotiff(model, scaler, uploaded_file, chunk_size=256):
             with memfile.open() as src:
                 height, width, band_count = src.height, src.width, src.count
 
-                if band_count < 11:
-                    st.error(f"Image has {band_count} bands, but at least 11 are required.")
+                # Get minimum required bands based on satellite type
+                min_required_bands = 11 if satellite_type == "venus" else 8  # Sentinel-2 needs at least 8 bands
+                
+                if band_count < min_required_bands:
+                    st.error(f"Image has {band_count} bands, but at least {min_required_bands} are required for {satellite_type} data.")
                     return None, None, None
 
                 # Get RGB image
-                rgb_image = get_rgb_image(src)
+                rgb_image = get_rgb_image(src, satellite_type)
                 if rgb_image is None:
                     return None, None, None
 
@@ -173,10 +214,12 @@ def predict_geotiff(model, scaler, uploaded_file, chunk_size=256):
                         window = Window(x, y, min(chunk_size, width - x), min(chunk_size, height - y))
                         data = src.read(window=window)
 
-                        # Exclude the first band as per the model's expected input structure
-                        data = data[1:, :, :]
-
-                        features = data.reshape(band_count - 1, -1).T
+                        # For Venus: exclude the first band as per the model's expected input structure
+                        # For Sentinel-2: use all bands
+                        if satellite_type == "venus":
+                            data = data[1:, :, :]
+                        
+                        features = data.reshape(data.shape[0], -1).T
 
                         if np.isnan(features).any() or np.isinf(features).any():
                             st.error("Invalid (NaN or infinite) values found in input data.")
@@ -204,7 +247,7 @@ def predict_geotiff(model, scaler, uploaded_file, chunk_size=256):
         st.error(f"Error processing image: {str(e)}")
         return None, None, None
 
-def plot_predictions(rgb_image, probability_predictions, colormap='drought', threshold=0.5):
+def plot_predictions(rgb_image, probability_predictions, satellite_type, colormap='drought', threshold=0.5):
     """
     Plotting visualizations using Matplotlib:
     1. RGB composite image.
@@ -215,10 +258,14 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
     Parameters:
     - rgb_image: NumPy array of shape (H, W, 3) with normalized RGB data.
     - probability_predictions: 2D NumPy array of drought risk probabilities.
+    - satellite_type: Either 'venus' or 'sentinel2' to display in titles
     - colormap: Colormap name or 'drought' for custom colormap.
     - threshold: Probability threshold for high-risk areas.
     """
     from matplotlib.colors import LinearSegmentedColormap
+
+    # Format satellite name for display
+    satellite_display = "Venµs" if satellite_type == "venus" else "Sentinel-2"
 
     # Custom drought colormap if requested
     if colormap == 'drought':
@@ -233,12 +280,12 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
 
     # TAB 1: RGB Composite
     with tabs[0]:
-        st.subheader("RGB Composite (Bands 7-4-3)")
-        st.image(rgb_image, use_container_width =True)
+        st.subheader(f"{satellite_display} RGB Composite")
+        st.image(rgb_image, use_container_width=True)
 
     # TAB 2: Probability Map
     with tabs[1]:
-        st.subheader("Drought Risk Probability Map")
+        st.subheader(f"Drought Risk Probability Map ({satellite_display})")
         fig, ax = plt.subplots(figsize=(10, 8))
         im = ax.imshow(probability_predictions, cmap=cmap)
         ax.axis('off')
@@ -259,6 +306,8 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
         low_risk_percentage = (low_risk_count / total_pixels) * 100
 
         st.markdown(f"""
+        **Satellite Data Source:** {satellite_display}
+        
         **Total Pixels Analyzed:** {total_pixels:,}
 
         **High Risk Areas (Probability ≥ {threshold}):** {high_risk_percentage:.2f}%
@@ -269,7 +318,7 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
         fig, ax = plt.subplots()
         ax.hist(probability_predictions.flatten(), bins=50, color='skyblue', edgecolor='black')
         ax.axvline(x=threshold, color='red', linestyle='--', label=f'Threshold = {threshold:.2f}')
-        ax.set_title("Distribution of Drought Risk Probabilities", fontsize=14)
+        ax.set_title(f"Distribution of Drought Risk Probabilities ({satellite_display})", fontsize=14)
         ax.set_xlabel("Probability")
         ax.set_ylabel("Frequency")
         ax.legend()
@@ -278,7 +327,7 @@ def plot_predictions(rgb_image, probability_predictions, colormap='drought', thr
 
     # TAB 4: Overlay
     with tabs[3]:
-        st.subheader("RGB + Forecast Overlay (High-Risk Areas)")
+        st.subheader(f"{satellite_display} RGB + Forecast Overlay (High-Risk Areas)")
         alpha = st.slider("Set Forecast Layer Transparency", min_value=0.0, max_value=1.0, value=0.5, step=0.01)
 
         # Create overlay: areas above threshold shown in a contrasting color
@@ -296,50 +345,115 @@ def main():
     # --------------------------------------------------------------------------------
     # Title and Citation Instructions
     # --------------------------------------------------------------------------------
-    st.title("🌍 Venµs Satellite-Based Drought Risk Assessment")
+    st.title("🌍 Satellite-Based Drought Risk Assessment")
 
     # Citation box
     st.markdown("""
     <div class="citation-box">
     <p><strong>Citation:</strong> If you use this application or the model's outputs in your research, please cite:</p>
-    <p><em>Smith, J., Doe, J., & Chan, A. (2024). High-Resolution Drought Forecasting Using Venµs Satellite Imagery. Journal of Environmental Studies, 12(3), 345–360. DOI:10.1234/exampleDOI</em></p>
+    <p><em>Smith, J., Doe, J., & Chan, A. (2024). High-Resolution Drought Forecasting Using Satellite Imagery. Journal of Environmental Studies, 12(3), 345–360. DOI:10.1234/exampleDOI</em></p>
     </div>
     """, unsafe_allow_html=True)
 
     # Introductory Description
     st.markdown("""
-    This application leverages advanced machine learning methods to estimate drought risk from Venµs satellite imagery. 
-    It integrates a trained Support Vector Machine model that interprets multi-band geospatial data to produce pixel-wise probability maps of drought vulnerability.
+    This application leverages advanced machine learning methods to estimate drought risk from satellite imagery. 
+    It integrates trained Support Vector Machine models that interpret multi-band geospatial data to produce pixel-wise probability maps of drought vulnerability.
 
     ### Key Features:
-    - **High-Quality Visualization**: RGB composites from Venµs bands 7-4-3.
+    - **Multi-Satellite Support**: Process imagery from both Venµs and Sentinel-2 satellites.
+    - **High-Quality Visualization**: RGB composites from appropriate satellite bands.
     - **Drought Probability Mapping**: Pixel-level probability assessments of drought risk.
     - **Robust Statistical Analysis**: Histograms, thresholds, and summary statistics for intuitive interpretation.
     - **Overlay Functionality**: Superimpose drought risk areas over RGB images for contextual insights.
     """)
 
-    # Model Loading
-    model, scaler = load_model()
-    if model is None or scaler is None:
-        st.error("Model failed to load. Please ensure the model file (model-svm.pkl) is present and valid.")
+    # --------------------------------------------------------------------------------
+    # Satellite Selection
+    # --------------------------------------------------------------------------------
+    st.header("Select Satellite Data Source")
+    
+    st.markdown("""
+    <div class="satellite-selector">
+    Choose the satellite data source that matches your input GeoTIFF file:
+    </div>
+    """, unsafe_allow_html=True)
+    
+    satellite_options = ["Venµs", "Sentinel-2"]
+    selected_satellites = st.multiselect(
+        "Select one or more satellite data sources:",
+        options=satellite_options,
+        default=["Venµs"],
+        help="Select the satellite platform(s) that your data comes from. You can select multiple options to compare results."
+    )
+    
+    if not selected_satellites:
+        st.warning("Please select at least one satellite data source to proceed.")
         return
 
+    # Model Loading
+    models = {}
+    if "Venµs" in selected_satellites:
+        venus_model, venus_scaler = load_venus_model()
+        if venus_model is None or venus_scaler is None:
+            st.error("Venus model failed to load. Please ensure the model file (model-svm.pkl) is present and valid.")
+            return
+        models["venus"] = {"model": venus_model, "scaler": venus_scaler}
+    
+    if "Sentinel-2" in selected_satellites:
+        s2_model, s2_scaler = load_sentinel2_model()
+        if s2_model is None or s2_scaler is None:
+            st.error("Sentinel-2 model failed to load. Please ensure the model file (S2_svm_classification_model.pkl) is present and valid.")
+            return
+        models["sentinel2"] = {"model": s2_model, "scaler": s2_scaler}
+
     # File Upload Section
-    st.header("Upload Venµs Satellite GeoTIFF")
-    st.markdown(
-        "<div class='upload-instructions'>Please upload a multi-band GeoTIFF file (≥11 bands) from the Venµs satellite. The file is processed to estimate drought risk probabilities for each pixel.</div>",
-        unsafe_allow_html=True
-    )
+    st.header("Upload Satellite GeoTIFF")
+    
+    upload_instructions = {
+        "venus": "Please upload a multi-band GeoTIFF file (≥11 bands) from the Venµs satellite.",
+        "sentinel2": "Please upload a multi-band GeoTIFF file (≥8 bands) from the Sentinel-2 satellite."
+    }
+    
+    if len(selected_satellites) == 1:
+        satellite_key = "venus" if selected_satellites[0] == "Venµs" else "sentinel2"
+        st.markdown(
+            f"<div class='upload-instructions'>{upload_instructions[satellite_key]}</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            "<div class='upload-instructions'>Please upload a multi-band GeoTIFF file from one of your selected satellites. The appropriate model will be applied based on your selection.</div>",
+            unsafe_allow_html=True
+        )
+    
     uploaded_file = st.file_uploader(
         "Choose a GeoTIFF file",
         type=['tif', 'tiff'],
-        help="Upload a multi-band GeoTIFF from the Venµs satellite."
+        help="Upload a multi-band GeoTIFF from one of your selected satellite platforms."
     )
 
     # Processing and Visualization
     if uploaded_file is not None:
-        with st.spinner("Analyzing your satellite data..."):
-            rgb_image, probability_predictions, meta = predict_geotiff(model, scaler, uploaded_file)
+        # If multiple satellites selected, let user specify which one matches the uploaded file
+        satellite_for_file = None
+        if len(selected_satellites) > 1:
+            satellite_for_file = st.radio(
+                "Which satellite platform does this file represent?",
+                selected_satellites
+            )
+            satellite_key = "venus" if satellite_for_file == "Venµs" else "sentinel2"
+        else:
+            satellite_key = "venus" if selected_satellites[0] == "Venµs" else "sentinel2"
+        
+        # Process the file with the appropriate model
+        with st.spinner(f"Analyzing your {satellite_key} satellite data..."):
+            rgb_image, probability_predictions, meta = predict_geotiff(
+                models[satellite_key]["model"], 
+                models[satellite_key]["scaler"], 
+                uploaded_file,
+                satellite_key
+            )
         
         if rgb_image is not None and probability_predictions is not None:
             st.header("Visualization & Analysis Settings")
@@ -355,7 +469,7 @@ def main():
             )
 
             st.header("Analysis Results")
-            plot_predictions(rgb_image, probability_predictions, colormap=colormap_option, threshold=threshold)
+            plot_predictions(rgb_image, probability_predictions, satellite_key, colormap=colormap_option, threshold=threshold)
 
             # Download Section
             st.header("Download Results")
@@ -373,7 +487,7 @@ def main():
                 st.download_button(
                     label="📊 Download Predictions (CSV)",
                     data=csv_data,
-                    file_name="drought_predictions.csv",
+                    file_name=f"drought_predictions_{satellite_key}.csv",
                     mime="text/csv",
                     help="Download all pixel-level probability predictions as CSV."
                 )
@@ -396,37 +510,42 @@ def main():
                 st.download_button(
                     label="🗺️ Download Predictions (GeoTIFF)",
                     data=geotiff_data,
-                    file_name="drought_predictions.tif",
+                    file_name=f"drought_predictions_{satellite_key}.tif",
                     mime="application/octet-stream",
                     help="Download the georeferenced predictions for use in GIS applications."
                 )
 
             # Help / Instructions
             with st.expander("Need Help?"):
-                st.markdown("""
+                st.markdown(f"""
                 **Instructions:**
                 
-                1. **Upload Data**: Click "Browse files" and select a multi-band GeoTIFF (≥11 bands).
-                2. **Set Visualization Parameters**: Choose a colormap and adjust the drought risk threshold.
-                3. **Explore Results**: 
+                1. **Select Satellite**: Choose the satellite platform(s) whose data you'll be using.
+                2. **Upload Data**: Click "Browse files" and select a multi-band GeoTIFF from your selected satellite.
+                3. **Set Visualization Parameters**: Choose a colormap and adjust the drought risk threshold.
+                4. **Explore Results**: 
                    - **RGB Image**: View satellite imagery in natural-color form.
                    - **Probability Map**: Examine spatial distribution of drought risk.
                    - **Statistical Analysis**: Gain quantitative insight via histograms and summary statistics.
                    - **Overlay**: Visualize high-risk areas superimposed on the RGB image.
-                4. **Download Results**: Export predictions in CSV or GeoTIFF formats.
+                5. **Download Results**: Export predictions in CSV or GeoTIFF formats.
                 
                 **Contact:** For further support, please contact Dr. Jane Smith (jane.smith@example.edu).
                 """)
 
     # Sidebar Information & Citation
-    st.sidebar.title("About the Model")
+    st.sidebar.title("About the Models")
     st.sidebar.markdown("""
     **Model Origin:**  
-    This model is part of ongoing research aiming to enhance drought forecasting capabilities through high-resolution satellite imagery.
+    These models are part of ongoing research aiming to enhance drought forecasting capabilities through high-resolution satellite imagery.
+
+    **Supported Satellites:**  
+    - **Venµs**: Vegetation and Environment monitoring on a New Micro-Satellite
+    - **Sentinel-2**: Copernicus Programme satellite with multi-spectral imaging capabilities
 
     **Citation Reminder:**  
     Please cite the associated publication when using these results:
-    *Smith, J., Doe, J., & Chan, A. (2024). High-Resolution Drought Forecasting Using Venµs Satellite Imagery. Journal of Environmental Studies, 12(3), 345–360. DOI:10.1234/exampleDOI*
+    *Smith, J., Doe, J., & Chan, A. (2024). High-Resolution Drought Forecasting Using Satellite Imagery. Journal of Environmental Studies, 12(3), 345–360. DOI:10.1234/exampleDOI*
     """)
 
 if __name__ == "__main__":
