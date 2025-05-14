@@ -1,13 +1,13 @@
 # Drought Risk Assessment Web Application
 
 ## Overview
-This web application provides access to the drought risk assessment model described in our article [*"LATERXXXXXX"*](https://doi.org/10.1234/exampleDOI). The application allows researchers and practitioners to apply our machine learning model to their own satellite imagery data to generate detailed drought risk probability maps.
+This web application provides access to the drought risk assessment model described in our article [Yungstein, Y., Fishman, N., Lerner, G., Mulero, G., Michael, Y., Yaakobi, A., Obersteiner, S., Rez, L., Klein, T., & Helman, D. (2025). Early detection of drought-stressed stands in Mediterranean forests using machine learning classification models and a rainfall exclusion experiment](https://doi.org/10.1234/exampleDOI). The application allows researchers and practitioners to apply our machine learning model to their own satellite imagery data to generate detailed drought risk probability maps.
 
 ## Citation Requirements
 
 > If you use this application or its outputs in your research, you **MUST** cite the original research article:
 >
-> XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+> Yungstein, Y., Fishman, N., Lerner, G., Mulero, G., Michael, Y., Yaakobi, A., Obersteiner, S., Rez, L., Klein, T., & Helman, D. (2025). Early detection of drought-stressed stands in Mediterranean forests using machine learning classification models and a rainfall exclusion experiment
 
 ## Web Application Access
 
@@ -51,12 +51,12 @@ For comprehensive information about the drought risk assessment model, including
 - Comparison with alternative approaches
 - Technical specifications and limitations
 
-Please refer to our published article: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+Please refer to our published article: Yungstein, Y., Fishman, N., Lerner, G., Mulero, G., Michael, Y., Yaakobi, A., Obersteiner, S., Rez, L., Klein, T., & Helman, D. (2025). Early detection of drought-stressed stands in Mediterranean forests using machine learning classification models and a rainfall exclusion experiment
 
 ## Contact Information
 
 For technical support or research collaboration inquiries, please contact:
-- Dr. David Helman (XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX)
+- Dr. David Helman (davidhelman.weebly.com)
 
 ## License
 
