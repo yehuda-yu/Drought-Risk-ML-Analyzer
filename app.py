@@ -544,7 +544,7 @@ def main():
     st.markdown("""
     <div class="citation-box">
     <p><strong>Citation:</strong> If you use this application or the model's outputs in your research, please cite:</p>
-    <p><em>XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</em></p>
+    <p><em>Yungstein, Y., Fishman, N., Lerner, G., Mulero, G., Michael, Y., Yaakobi, A., Obersteiner, S., Rez, L., Klein, T., & Helman, D. (2025). Early detection of drought-stressed stands in Mediterranean forests using machine learning classification models and a rainfall exclusion experiment</em></p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -738,7 +738,7 @@ def main():
 
     **Citation Reminder:**  
     Please cite the associated publication when using these results:
-    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX""")
+    Yungstein, Y., Fishman, N., Lerner, G., Mulero, G., Michael, Y., Yaakobi, A., Obersteiner, S., Rez, L., Klein, T., & Helman, D. (2025). Early detection of drought-stressed stands in Mediterranean forests using machine learning classification models and a rainfall exclusion experiment""")
 
 if __name__ == "__main__":
     main()
