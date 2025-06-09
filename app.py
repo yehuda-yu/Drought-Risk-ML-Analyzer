@@ -723,7 +723,7 @@ def main():
                    - **Overlay**: Visualize high-risk areas superimposed on the RGB image.
                 5. **Download Results**: Export predictions in CSV or GeoTIFF formats.
                 
-                **Contact:** For further support, please contact Dr. Jane Smith (jane.smith@example.edu).
+                **Contact:** For further information, please contact Dr. David Helman (David.Helman@mail.huji.ac.il).
                 """)
 
     # Sidebar Information & Citation
@@ -735,10 +735,6 @@ def main():
     **Supported Satellites:**  
     - **Venµs**: Vegetation and Environment monitoring on a New Micro-Satellite
     - **Sentinel-2**: Copernicus Programme satellite with multi-spectral imaging capabilities
-
-    **Citation Reminder:**  
-    Please cite the associated publication when using these results:
-    Yungstein, Y., Fishman, N., Lerner, G., Mulero, G., Michael, Y., Yaakobi, A., Obersteiner, S., Rez, L., Klein, T., & Helman, D. (2025). Early detection of drought-stressed stands in Mediterranean forests using machine learning classification models and a rainfall exclusion experiment""")
 
 if __name__ == "__main__":
     main()
