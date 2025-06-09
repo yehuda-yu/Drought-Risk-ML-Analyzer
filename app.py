@@ -734,7 +734,7 @@ def main():
 
     **Supported Satellites:**  
     - **Venµs**: Vegetation and Environment monitoring on a New Micro-Satellite
-    - **Sentinel-2**: Copernicus Programme satellite with multi-spectral imaging capabilities
+    - **Sentinel-2**: Copernicus Programme satellite with multi-spectral imaging capabilities""")
 
 if __name__ == "__main__":
     main()
