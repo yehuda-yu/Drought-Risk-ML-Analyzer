@@ -255,7 +255,7 @@ def predict_geotiff(model, scaler, uploaded_file, satellite_type, chunk_size=256
         st.error(f"Error processing image: {str(e)}")
         return None, None, None
 
-def plot_predictions(rgb_image, probability_predictions, satellite_type, colormap='drought', threshold=0.5, meta=None):
+def plot_predictions(rgb_image, probability_predictions, satellite_type, colormap='drought', threshold=0.5, meta=None, image_date=None):
     """
     Plotting visualizations using Matplotlib:
     1. RGB composite image.
@@ -534,6 +534,14 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
         st.pyplot(fig)
         plt.close()
 
+    # Set the main title for the entire figure
+    if image_date:
+        fig.suptitle(f"Drought Risk Analysis ({satellite_type.capitalize()}) - {image_date.strftime('%Y-%m-%d')}", 
+                     fontsize=22, y=1.05, color='#2C3E50', fontweight='bold')
+    else:
+        fig.suptitle(f"Drought Risk Analysis ({satellite_type.capitalize()})", 
+                     fontsize=22, y=1.05, color='#2C3E50', fontweight='bold')
+
 def main():
     # --------------------------------------------------------------------------------
     # Title and Citation Instructions
@@ -639,6 +647,9 @@ def main():
         else:
             satellite_key = "venus" if selected_satellites[0] == "Venµs" else "sentinel2"
         
+        # Date input for the image
+        image_date = st.date_input("Select the date of the image")
+        
         # Process the file with the appropriate model
         with st.spinner(f"Analyzing your {satellite_key} satellite data..."):
             rgb_image, probability_predictions, meta = predict_geotiff(
@@ -662,7 +673,7 @@ def main():
             )
 
             st.header("Analysis Results")
-            plot_predictions(rgb_image, probability_predictions, satellite_key, colormap=colormap_option, threshold=threshold, meta=meta)
+            plot_predictions(rgb_image, probability_predictions, satellite_key, colormap=colormap_option, threshold=threshold, meta=meta, image_date=image_date)
 
             # Download Section
             st.header("Download Results")
@@ -680,7 +691,7 @@ def main():
                 st.download_button(
                     label="📊 Download Predictions (CSV)",
                     data=csv_data,
-                    file_name=f"drought_predictions_{satellite_key}.csv",
+                    file_name=f"drought_predictions_{satellite_key}_{image_date.strftime('%Y%m%d')}.csv",
                     mime="text/csv",
                     help="Download all pixel-level probability predictions as CSV."
                 )
@@ -703,7 +714,7 @@ def main():
                 st.download_button(
                     label="🗺️ Download Predictions (GeoTIFF)",
                     data=geotiff_data,
-                    file_name=f"drought_predictions_{satellite_key}.tif",
+                    file_name=f"drought_predictions_{satellite_key}_{image_date.strftime('%Y%m%d')}.tif",
                     mime="application/octet-stream",
                     help="Download the georeferenced predictions for use in GIS applications."
                 )
