@@ -9,7 +9,7 @@ import rasterio
 from rasterio.io import MemoryFile
 from rasterio.windows import Window
 from rasterio.plot import plotting_extent
-import pickle
+import joblib
 import os
 from matplotlib.transforms import Bbox
 import cartopy.crs as ccrs
@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 import tempfile
 import json
 from streamlit.components.v1 import html
+import pickle
 
 # --------------------------------------------------------------------------------
 # Page and UI Configuration
@@ -145,9 +146,6 @@ if 'drawn_features' not in st.session_state:
 def load_venus_model():
     """
     Load the trained Venus satellite model and corresponding scaler from a pickle file.
-
-    The model is a Support Vector Machine (SVM) designed for drought risk 
-    assessment using multi-band Venµs satellite imagery.
     """
     model_file = 'model-svm.pkl'
     if not os.path.exists(model_file):
@@ -164,18 +162,14 @@ def load_venus_model():
 @st.cache_resource
 def load_sentinel2_model():
     """
-    Load the trained Sentinel-2 satellite model and corresponding scaler from a pickle file.
-
-    The model is a Support Vector Machine (SVM) designed for drought risk 
-    assessment using multi-band Sentinel-2 satellite imagery.
+    Load the trained Sentinel-2 satellite model and corresponding scaler from a joblib file.
     """
     model_file = 'S2_svm_classification_model.pkl'
     if not os.path.exists(model_file):
         st.error(f"Model file {model_file} not found.")
         return None, None
     try:
-        with open(model_file, 'rb') as f:
-            data = pickle.load(f)
+        data = joblib.load(model_file)
         return data['model'], data['scaler']
     except Exception as e:
         st.error(f"Error loading Sentinel-2 model: {str(e)}")
