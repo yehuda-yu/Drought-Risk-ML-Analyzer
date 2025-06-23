@@ -12,3 +12,4 @@ geemap>=0.20.0
 earthengine-api>=0.1.300
 streamlit-folium>=0.6.0
 folium>=0.12.1
+setuptools>=65.0.0
