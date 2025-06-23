@@ -164,7 +164,7 @@ def load_sentinel2_model():
     """
     Load the trained Sentinel-2 satellite model and corresponding scaler from a joblib file.
     """
-    model_file = 'S2_svm_classification_model.pkl'
+    model_file = 'S2_model_and_scaler.pkl'
     if not os.path.exists(model_file):
         st.error(f"Model file {model_file} not found.")
         return None, None
