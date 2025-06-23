@@ -9,21 +9,12 @@ import rasterio
 from rasterio.io import MemoryFile
 from rasterio.windows import Window
 from rasterio.plot import plotting_extent
-import joblib
+import pickle
 import os
 from matplotlib.transforms import Bbox
 import cartopy.crs as ccrs
 from matplotlib.patches import FancyArrowPatch
 import matplotlib.patheffects as PathEffects
-import geemap
-import ee
-import folium
-from streamlit_folium import folium_static
-from datetime import datetime, timedelta
-import tempfile
-import json
-from streamlit.components.v1 import html
-import pickle
 
 # --------------------------------------------------------------------------------
 # Page and UI Configuration
@@ -107,38 +98,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# JavaScript callback for handling drawn features
-draw_callback = """
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const map = document.querySelector('#map');
-    if (map) {
-        map.addEventListener('draw:created', function(e) {
-            const type = e.layerType;
-            const layer = e.layer;
-            if (type === 'rectangle') {
-                const bounds = layer.getBounds();
-                const coordinates = [
-                    bounds.getWest(),
-                    bounds.getSouth(),
-                    bounds.getEast(),
-                    bounds.getNorth()
-                ];
-                window.Streamlit.setComponentValue({
-                    'type': type,
-                    'coordinates': coordinates
-                });
-            }
-        });
-    }
-});
-</script>
-"""
-
-# Initialize session state for drawn features if it doesn't exist
-if 'drawn_features' not in st.session_state:
-    st.session_state.drawn_features = None
-
 # --------------------------------------------------------------------------------
 # Model Loading and Utilities
 # --------------------------------------------------------------------------------
@@ -146,6 +105,9 @@ if 'drawn_features' not in st.session_state:
 def load_venus_model():
     """
     Load the trained Venus satellite model and corresponding scaler from a pickle file.
+
+    The model is a Support Vector Machine (SVM) designed for drought risk 
+    assessment using multi-band Venµs satellite imagery.
     """
     model_file = 'model-svm.pkl'
     if not os.path.exists(model_file):
@@ -289,7 +251,7 @@ def predict_geotiff(model, scaler, uploaded_file, satellite_type, chunk_size=256
         st.error(f"Error processing image: {str(e)}")
         return None, None, None
 
-def plot_predictions(rgb_image, probability_predictions, satellite_type, colormap='drought', threshold=0.5, meta=None, image_date=None):
+def plot_predictions(rgb_image, probability_predictions, satellite_type, colormap='drought', threshold=0.5, meta=None):
     """
     Plotting visualizations using Matplotlib:
     1. RGB composite image.
@@ -568,119 +530,6 @@ def plot_predictions(rgb_image, probability_predictions, satellite_type, colorma
         st.pyplot(fig)
         plt.close()
 
-    # Set the main title for the entire figure
-    if image_date:
-        fig.suptitle(f"Drought Risk Analysis ({satellite_type.capitalize()}) - {image_date.strftime('%Y-%m-%d')}", 
-                     fontsize=22, y=1.05, color='#2C3E50', fontweight='bold')
-    else:
-        fig.suptitle(f"Drought Risk Analysis ({satellite_type.capitalize()})", 
-                     fontsize=22, y=1.05, color='#2C3E50', fontweight='bold')
-
-# Initialize Earth Engine
-@st.cache_resource
-def initialize_gee():
-    """Initialize Google Earth Engine and validate credentials."""
-    try:
-        ee.Initialize()
-        return True
-    except Exception as e:
-        return False
-
-def setup_gee():
-    """
-    Setup and authenticate Google Earth Engine.
-    Returns instructions if authentication is needed.
-    """
-    is_initialized = initialize_gee()
-    if not is_initialized:
-        st.error("Google Earth Engine authentication required!")
-        st.markdown("""
-        ### Google Earth Engine Setup Instructions:
-        1. Go to [Google Earth Engine](https://earthengine.google.com/) and sign up
-        2. Create a Google Cloud Project:
-           - Visit [Google Cloud Console](https://console.cloud.google.com)
-           - Create a new project or select an existing one
-           - Enable the Earth Engine API for your project
-        3. Install the Earth Engine CLI:
-           ```
-           pip install earthengine-api --upgrade
-           ```
-        4. Authenticate in your terminal:
-           ```
-           earthengine authenticate
-           ```
-        5. Once authenticated, restart this application
-        """)
-        return False
-    return True
-
-def get_s2_collection(aoi, start_date, end_date):
-    """
-    Get Sentinel-2 image collection for the specified area and date range.
-    
-    Args:
-        aoi: Earth Engine Geometry
-        start_date: Start date string (YYYY-MM-DD)
-        end_date: End date string (YYYY-MM-DD)
-    
-    Returns:
-        ee.Image: Processed Sentinel-2 image
-    """
-    # Import Sentinel-2 Surface Reflectance collection
-    s2_collection = (ee.ImageCollection('COPERNICUS/S2_SR')
-                    .filterBounds(aoi)
-                    .filterDate(start_date, end_date)
-                    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)))
-    
-    if s2_collection.size().getInfo() == 0:
-        return None
-    
-    # Select the least cloudy image
-    image = ee.Image(s2_collection.sort('CLOUDY_PIXEL_PERCENTAGE').first())
-    
-    # Select the bands we need and rename them
-    selected_bands = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12']
-    image = image.select(selected_bands)
-    
-    return image
-
-def download_s2_image(image, aoi, output_path):
-    """
-    Download Sentinel-2 image as GeoTIFF.
-    
-    Args:
-        image: ee.Image object
-        aoi: Earth Engine Geometry
-        output_path: Path to save the GeoTIFF
-    
-    Returns:
-        str: Path to downloaded file or None if failed
-    """
-    try:
-        # Get the projection and transform
-        proj = image.projection()
-        scale = 10  # 10m resolution
-        
-        # Export image to GeoTIFF
-        url = image.getDownloadURL({
-            'scale': scale,
-            'crs': proj,
-            'region': aoi,
-            'format': 'GEO_TIFF'
-        })
-        
-        # Download the image
-        import requests
-        response = requests.get(url)
-        if response.status_code == 200:
-            with open(output_path, 'wb') as f:
-                f.write(response.content)
-            return output_path
-        return None
-    except Exception as e:
-        st.error(f"Error downloading image: {str(e)}")
-        return None
-
 def main():
     # --------------------------------------------------------------------------------
     # Title and Citation Instructions
@@ -747,81 +596,8 @@ def main():
             return
         models["sentinel2"] = {"model": s2_model, "scaler": s2_scaler}
 
-        # Google Earth Engine Integration for Sentinel-2
-        if setup_gee():
-            st.header("Download Sentinel-2 Data")
-            st.markdown("""
-            You can download Sentinel-2 data directly using Google Earth Engine. Draw a polygon on the map
-            to select your area of interest, then specify the date range for image acquisition.
-            """)
-
-            # Create a map centered on a default location
-            m = geemap.Map(center=[31.5, 35], zoom=7)
-            
-            # Add drawing controls
-            draw_control = folium.plugins.Draw(
-                export=False,
-                position='topleft',
-                draw_options={
-                    'polyline': False,
-                    'rectangle': True,
-                    'circle': False,
-                    'circlemarker': False,
-                    'marker': False
-                }
-            )
-            m.add_child(draw_control)
-            
-            # Display the map
-            st.markdown("### Draw Area of Interest")
-            st.markdown("Use the rectangle tool (☐) on the left side of the map to draw your area of interest.")
-            map_container = folium_static(m)
-            
-            # Add JavaScript callback
-            html(draw_callback)
-            
-            # Handle drawn features callback
-            if st.session_state.drawn_features:
-                st.success("Area of interest selected!")
-                
-            # Date selection
-            st.markdown("### Select Date Range")
-            col1, col2 = st.columns(2)
-            with col1:
-                start_date = st.date_input("Start Date", datetime.now() - timedelta(days=30))
-            with col2:
-                end_date = st.date_input("End Date", datetime.now())
-
-            # Download button
-            if st.session_state.get('drawn_features'):
-                if st.button("Download Sentinel-2 Data"):
-                    with st.spinner("Downloading Sentinel-2 data..."):
-                        # Convert the drawn features to GEE geometry
-                        aoi = ee.Geometry.Rectangle(st.session_state.drawn_features['coordinates'])
-                        
-                        # Get the image
-                        image = get_s2_collection(aoi, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
-                        
-                        if image is not None:
-                            # Create a temporary file
-                            with tempfile.NamedTemporaryFile(delete=False, suffix='.tif') as tmp_file:
-                                # Download the image
-                                downloaded_path = download_s2_image(image, aoi, tmp_file.name)
-                                
-                                if downloaded_path:
-                                    st.success("Sentinel-2 data downloaded successfully!")
-                                    # Automatically use the downloaded file for analysis
-                                    with open(downloaded_path, 'rb') as f:
-                                        uploaded_file = f
-                                else:
-                                    st.error("Failed to download Sentinel-2 data. Please try again or upload your own file.")
-                        else:
-                            st.error("No suitable Sentinel-2 images found for the selected date range. Please try different dates or reduce cloud coverage threshold.")
-
-    # File Upload Section for manual upload
+    # File Upload Section
     st.header("Upload Satellite GeoTIFF")
-    if "Sentinel-2" in selected_satellites and not st.session_state.get('uploaded_file'):
-        st.markdown("You can either use the downloaded Sentinel-2 data above or upload your own GeoTIFF file.")
     
     upload_instructions = {
         "venus": "Please upload a multi-band GeoTIFF file (≥11 bands) from the Venµs satellite.",
@@ -859,9 +635,6 @@ def main():
         else:
             satellite_key = "venus" if selected_satellites[0] == "Venµs" else "sentinel2"
         
-        # Date input for the image
-        image_date = st.date_input("Select the date of the image")
-        
         # Process the file with the appropriate model
         with st.spinner(f"Analyzing your {satellite_key} satellite data..."):
             rgb_image, probability_predictions, meta = predict_geotiff(
@@ -885,7 +658,7 @@ def main():
             )
 
             st.header("Analysis Results")
-            plot_predictions(rgb_image, probability_predictions, satellite_key, colormap=colormap_option, threshold=threshold, meta=meta, image_date=image_date)
+            plot_predictions(rgb_image, probability_predictions, satellite_key, colormap=colormap_option, threshold=threshold, meta=meta)
 
             # Download Section
             st.header("Download Results")
@@ -903,7 +676,7 @@ def main():
                 st.download_button(
                     label="📊 Download Predictions (CSV)",
                     data=csv_data,
-                    file_name=f"drought_predictions_{satellite_key}_{image_date.strftime('%Y%m%d')}.csv",
+                    file_name=f"drought_predictions_{satellite_key}.csv",
                     mime="text/csv",
                     help="Download all pixel-level probability predictions as CSV."
                 )
@@ -926,7 +699,7 @@ def main():
                 st.download_button(
                     label="🗺️ Download Predictions (GeoTIFF)",
                     data=geotiff_data,
-                    file_name=f"drought_predictions_{satellite_key}_{image_date.strftime('%Y%m%d')}.tif",
+                    file_name=f"drought_predictions_{satellite_key}.tif",
                     mime="application/octet-stream",
                     help="Download the georeferenced predictions for use in GIS applications."
                 )
