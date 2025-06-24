@@ -11,7 +11,7 @@ This web application provides access to the drought risk assessment model descri
 
 ## Web Application Access
 
-The application is publicly available at: [[https://drought-risk-assessment.streamlit.app/](https://drought-risk-assessment.streamlit.app/)
+The application is publicly available at: https://drought-risk-ml-analyzer.streamlit.app/
 
 ## Usage Guide
 
